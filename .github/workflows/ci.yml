@@ -1,0 +1,42 @@
+name: ci
+
+# Pull requests run this directly; pushes to main run it through release.yml.
+on:
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - run: cargo test --workspace --locked
+
+  version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: VERSION matches Cargo.toml
+        run: |
+          v=$(tr -d '[:space:]' < VERSION)
+          c=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+          [ "$v" = "$c" ] || { echo "VERSION $v != Cargo.toml $c"; exit 1; }
+      - name: pull request bumps VERSION
+        if: github.event_name == 'pull_request'
+        run: |
+          v=$(tr -d '[:space:]' < VERSION)
+          if git rev-parse -q --verify "refs/tags/v$v" >/dev/null; then
+            echo "v$v is already released; bump VERSION and Cargo.toml so this merge ships."
+            exit 1
+          fi

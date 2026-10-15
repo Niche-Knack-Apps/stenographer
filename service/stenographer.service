@@ -1,0 +1,15 @@
+[Unit]
+Description=Stenographer shell history daemon
+After=default.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/stenographerd
+Restart=on-failure
+RestartSec=5
+Environment=RUST_LOG=info
+PrivateTmp=yes
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=default.target

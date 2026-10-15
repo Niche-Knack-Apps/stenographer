@@ -1,0 +1,89 @@
+name: release
+
+# Every push to main that carries a new VERSION becomes a release: static
+# amd64 + arm64 Linux binaries of steno and stenographerd, SHA256SUMS, tag vX.Y.Z.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  decide:
+    needs: ci
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      new: ${{ steps.v.outputs.new }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - id: v
+        run: |
+          v=$(tr -d '[:space:]' < VERSION)
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          if git rev-parse -q --verify "refs/tags/v$v" >/dev/null; then
+            echo "v$v already released; nothing to do."
+            echo "new=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "new=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    needs: decide
+    if: needs.decide.outputs.new == 'true'
+    strategy:
+      matrix:
+        include:
+          - { os: ubuntu-latest, target: x86_64-unknown-linux-musl, arch: amd64 }
+          - { os: ubuntu-24.04-arm, target: aarch64-unknown-linux-musl, arch: arm64 }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - run: sudo apt-get update && sudo apt-get install -y musl-tools
+      - name: Build
+        env:
+          CC_x86_64_unknown_linux_musl: musl-gcc
+          CC_aarch64_unknown_linux_musl: musl-gcc
+        run: |
+          cargo build --workspace --release --locked --target "${{ matrix.target }}"
+          mkdir -p dist
+          for bin in steno stenographerd; do
+            cp "target/${{ matrix.target }}/release/$bin" "dist/${bin}_linux_${{ matrix.arch }}"
+            file "dist/${bin}_linux_${{ matrix.arch }}"
+          done
+      - uses: actions/upload-artifact@v7
+        with:
+          name: linux-${{ matrix.arch }}
+          path: dist/*
+          if-no-files-found: error
+
+  publish:
+    needs: [decide, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          V: ${{ needs.decide.outputs.version }}
+        run: |
+          cd dist && sha256sum -- * > SHA256SUMS && cat SHA256SUMS
+          gh release create "v$V" ./* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Stenographer v$V" --generate-notes \
+            --notes "Put \`steno\` and \`stenographerd\` for your architecture on your PATH (check them with \`sha256sum --ignore-missing -c SHA256SUMS\`), then run \`steno install\`. More from Niche-Knack at https://nk.tools"

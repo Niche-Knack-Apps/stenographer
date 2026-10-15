@@ -1,0 +1,28 @@
+[package]
+name = "steno-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "steno"
+path = "src/main.rs"
+
+[dependencies]
+steno-core = { workspace = true }
+clap = { workspace = true }
+clap_complete = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+colored = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+dirs = { workspace = true }
+anyhow = { workspace = true }
+nix = { workspace = true }
+toml = { workspace = true }
+skim = { workspace = true }
+regex = { workspace = true }
+which = { workspace = true }
+crossterm = { workspace = true }
