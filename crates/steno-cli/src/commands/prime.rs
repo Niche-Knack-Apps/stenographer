@@ -276,12 +276,13 @@ fn is_noise(cmd: &str) -> bool {
     if first == "cd" {
         match args.as_slice() {
             [] | ["."] | [".."] | ["/"] | ["-"] => return true,
-            [target] => {
-                // Relative paths (cd ../foo, cd subdir/bar) are useless without CWD context
-                if !target.starts_with('/') && !target.starts_with('~') && !target.starts_with('$')
-                {
-                    return true;
-                }
+            // Relative paths (cd ../foo, cd subdir/bar) are useless without CWD context
+            [target]
+                if !target.starts_with('/')
+                    && !target.starts_with('~')
+                    && !target.starts_with('$') =>
+            {
+                return true;
             }
             _ => {}
         }

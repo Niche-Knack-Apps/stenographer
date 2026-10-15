@@ -212,10 +212,8 @@ pub(crate) fn should_ignore(db: &Database, cmd: &str) -> steno_core::Result<bool
                     return Ok(true);
                 }
             }
-            "prefix" => {
-                if cmd.starts_with(pattern.as_str()) {
-                    return Ok(true);
-                }
+            "prefix" if cmd.starts_with(pattern.as_str()) => {
+                return Ok(true);
             }
             _ => {}
         }
